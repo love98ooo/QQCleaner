@@ -56,14 +56,14 @@ impl Migrator {
 
     async fn get_file_paths(&self, file: &FileInfo) -> Vec<(PathBuf, PathBuf)> {
         let mut paths = Vec::new();
-        
+
         if file.file_name.is_empty() {
             return paths;
         }
 
         let datetime = DateTime::<Utc>::from_timestamp(file.msg_time, 0)
             .unwrap_or_else(|| DateTime::<Utc>::from_timestamp(0, 0).unwrap());
-        
+
         let time_dir = format!("{}-{:02}", datetime.year(), datetime.month());
         let base_dir = self.qq_data_dir.join(&time_dir);
 
@@ -117,7 +117,7 @@ impl Migrator {
             }
 
             let file_paths = self.get_file_paths(file).await;
-            
+
             for (src_path, rel_path) in file_paths {
                 let dst_path = if options.keep_structure {
                     // 保留时间和 Ori/Thumb 结构

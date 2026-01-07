@@ -26,7 +26,7 @@ pub struct DatabaseConfig {
 impl Config {
     pub fn load() -> Result<Self> {
         let config_path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("config.toml");
-        
+
         if config_path.exists() {
             let content = fs::read_to_string(&config_path)
                 .context("无法读取配置文件")?;

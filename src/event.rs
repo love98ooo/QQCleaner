@@ -28,7 +28,7 @@ impl EventHandler {
 
 pub fn handle_key_event(app: &mut crate::app::App, key: KeyEvent) {
     use crate::app::{AppTab, ConfirmAction};
-    
+
     if key.modifiers.contains(KeyModifiers::CONTROL) && key.code == KeyCode::Char('c') {
         app.quit();
         return;

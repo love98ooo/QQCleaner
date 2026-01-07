@@ -133,14 +133,14 @@ impl App {
         let len = stats.len();
         let filtered_stats: Vec<usize> = (0..len).collect();
         let selected_groups = vec![false; len];
-        
+
         let migrate_presets = vec![
             PathBuf::from("./migration"),
             dirs::document_dir()
                 .unwrap_or_else(|| PathBuf::from("~"))
                 .join("qqnt_migration"),
         ];
-        
+
         let mut app = Self {
             should_quit: false,
             current_tab: AppTab::Home,
@@ -164,7 +164,7 @@ impl App {
             filter_cursor: 0,
             logger,
         };
-        
+
         app.apply_filter();
         app.add_log(LogLevel::Info, "应用启动成功");
         app
@@ -246,7 +246,7 @@ impl App {
 
     pub fn apply_filter(&mut self) {
         let now = chrono::Utc::now().timestamp();
-        
+
         self.filtered_stats = self.stats
             .iter()
             .enumerate()
@@ -254,15 +254,15 @@ impl App {
                 if self.filter.hide_empty && stat.exist_count == 0 {
                     return false;
                 }
-                
+
                 if stat.total_size < self.filter.min_size {
                     return false;
                 }
-                
+
                 if stat.file_count < self.filter.min_file_count {
                     return false;
                 }
-                
+
                 match self.filter.activity {
                     ActivityFilter::All => {}
                     ActivityFilter::Active(days) => {
@@ -271,7 +271,7 @@ impl App {
                             .map(|f| f.msg_time)
                             .max()
                             .unwrap_or(0);
-                        
+
                         if latest_time < cutoff {
                             return false;
                         }
@@ -282,18 +282,18 @@ impl App {
                             .map(|f| f.msg_time)
                             .max()
                             .unwrap_or(0);
-                        
+
                         if latest_time >= cutoff {
                             return false;
                         }
                     }
                 }
-                
+
                 true
             })
             .map(|(idx, _)| idx)
             .collect();
-        
+
         if self.selected_index >= self.filtered_stats.len() {
             self.selected_index = self.filtered_stats.len().saturating_sub(1);
         }
@@ -306,7 +306,7 @@ impl App {
             level,
             message: message.to_string(),
         });
-        
+
         let level_str = match level {
             LogLevel::Info => "INFO",
             LogLevel::Success => "OK",

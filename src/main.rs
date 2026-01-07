@@ -31,7 +31,7 @@ use std::sync::Arc;
 async fn main() -> Result<()> {
     let logger = Arc::new(Logger::new()?);
     println!("日志文件: {:?}", logger.get_log_path());
-    
+
     let (stats, nt_data_dir) = initialize_app().await?;
     enable_raw_mode()?;
     let mut stdout = std::io::stdout();
@@ -115,7 +115,7 @@ async fn initialize_app() -> Result<(Vec<crate::models::GroupStats>, PathBuf)> {
     let groups = db.get_all_groups()
         .context("读取群组信息失败")?;
 
-    println!("✓ 找到 {} 个群组，共 {} 个文件", 
+    println!("✓ 找到 {} 个群组，共 {} 个文件",
         group_files.len(),
         group_files.values().map(|v| v.len()).sum::<usize>()
     );
@@ -155,7 +155,7 @@ async fn run_app(
         match event_handler.next()? {
             AppEvent::Key(key) => {
                 event::handle_key_event(app, key);
-                
+
                 if !app.show_confirm_dialog {
                     if let Some(action) = app.confirm_action.take() {
                         match action {
@@ -188,28 +188,28 @@ async fn execute_clean(app: &mut App, checker: &FileChecker) -> Result<()> {
             }
         })
         .collect();
-    
+
     if selected_info.is_empty() {
         return Ok(());
     }
 
     app.add_log(LogLevel::Info, &format!("开始清理 {} 个群组", selected_info.len()));
-    
+
     let total_files: usize = selected_info.iter().map(|(_, _, count)| count).sum();
     app.start_operation(total_files);
 
     let time_range = app.time_range;
     let mut current = 0;
-    
+
     for (idx, group_name, file_count) in selected_info {
         app.add_log(LogLevel::Info, &format!("清理群组: {}", group_name));
-        
+
         let stat = &app.stats[idx];
         match checker.delete_group_files(stat, Some(&time_range)).await {
             Ok((deleted, failed)) => {
                 current += file_count;
                 app.update_progress(current, &group_name);
-                
+
                 if failed > 0 {
                     app.add_log(
                         LogLevel::Warning,
@@ -250,13 +250,13 @@ async fn execute_migrate(app: &mut App, migrator: &Migrator) -> Result<()> {
             }
         })
         .collect();
-    
+
     if selected_info.is_empty() {
         return Ok(());
     }
 
     app.add_log(LogLevel::Info, &format!("开始迁移 {} 个群组", selected_info.len()));
-    
+
     let total_files: usize = selected_info.iter().map(|(_, _, count)| count).sum();
     app.start_operation(total_files);
 
@@ -269,13 +269,13 @@ async fn execute_migrate(app: &mut App, migrator: &Migrator) -> Result<()> {
     let mut current = 0;
     for (idx, group_name, file_count) in selected_info {
         app.add_log(LogLevel::Info, &format!("迁移群组: {}", group_name));
-        
+
         let stat = &app.stats[idx];
         match migrator.migrate_group_files(stat, &options, None).await {
             Ok(result) => {
                 current += file_count;
                 app.update_progress(current, &group_name);
-                
+
                 if result.failed_files > 0 {
                     app.add_log(
                         LogLevel::Warning,
