@@ -1,0 +1,16 @@
+[package]
+name = "QQCleaner"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+rusqlite = { version = "0.31", features = ["bundled"] }
+tokio = { version = "1.35", features = ["full"] }
+anyhow = "1.0"
+dirs = "5.0"
+dialoguer = "0.11"
+colored = "2.1"
+chrono = "0.4"
+inquire = "0.7"
+serde = { version = "1.0", features = ["derive"] }
+toml = "0.8"

@@ -1,0 +1,21 @@
+# QQ Cleaner 配置文件
+
+[paths]
+# QQ 数据目录相对路径（相对于用户主目录）
+qq_data_base = "Library/Containers/com.tencent.qq/Data/Library/Application Support/QQ"
+
+# nt_qq 目录名称前缀
+nt_qq_prefix = "nt_qq_"
+
+# nt_data 子目录路径
+nt_data_subpath = "nt_data/Pic"
+
+[database]
+# 数据库文件目录（相对于项目根目录）
+db_dir = "nt_db"
+
+# 文件数据库名称
+files_db_name = "files_in_chat.clean.db"
+
+# 群组数据库名称
+group_db_name = "group_info.clean.db"
