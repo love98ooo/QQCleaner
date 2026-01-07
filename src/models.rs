@@ -42,7 +42,7 @@ pub struct GroupStats {
     pub total_size: u64,        // 总大小（字节）
     pub file_count: usize,      // 文件数量
     pub exist_count: usize,     // 存在的文件数量
-    pub missing_count: usize,   // 缺失的文件数量
+    pub missing_count: usize,   // 缺失(已清理)的文件数量
     pub files: Vec<FileInfo>,
 }
 

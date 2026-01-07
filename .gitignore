@@ -3,3 +3,5 @@
 /nt_db
 
 *.key
+
+/logs

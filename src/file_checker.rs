@@ -42,7 +42,7 @@ impl FileChecker {
 
             join_set.spawn(async move {
                 let mut file_info = file_clone;
-                
+
                 if filename.is_empty() {
                     file_info.actual_size = None;
                     return file_info;
@@ -50,7 +50,7 @@ impl FileChecker {
 
                 let datetime = DateTime::<Utc>::from_timestamp(msg_time, 0)
                     .unwrap_or_else(|| DateTime::<Utc>::from_timestamp(0, 0).unwrap());
-                
+
                 let time_dir = format!("{}-{:02}", datetime.year(), datetime.month());
                 let base_dir = qq_data_dir.join(&time_dir);
 
@@ -74,7 +74,7 @@ impl FileChecker {
                 } else {
                     None
                 };
-                
+
                 file_info
             });
         }
@@ -89,7 +89,6 @@ impl FileChecker {
         Ok(updated_files)
     }
 
-    /// 生成群组统计信息
     pub async fn generate_group_stats(
         &self,
         group_files: Vec<(String, Vec<FileInfo>)>,
@@ -99,7 +98,7 @@ impl FileChecker {
 
         for (group_id, files) in group_files {
             let updated_files = self.check_files_exist_with_size(&files).await?;
-            
+
             let exist_count = updated_files.iter().filter(|f| f.actual_size.is_some()).count();
             let missing_count = updated_files.len() - exist_count;
             let total_size: u64 = updated_files.iter()
@@ -129,7 +128,7 @@ impl FileChecker {
     pub async fn delete_group_files(
         &self,
         stats: &GroupStats,
-        time_range: Option<&crate::cli::TimeRange>,
+        time_range: Option<&crate::time_range::TimeRange>,
     ) -> Result<(usize, usize)> {
         let mut join_set = JoinSet::new();
 
@@ -155,7 +154,7 @@ impl FileChecker {
 
                 let datetime = DateTime::<Utc>::from_timestamp(msg_time, 0)
                     .unwrap_or_else(|| DateTime::<Utc>::from_timestamp(0, 0).unwrap());
-                
+
                 let time_dir = format!("{}-{:02}", datetime.year(), datetime.month());
                 let base_dir = qq_data_dir.join(&time_dir);
 
