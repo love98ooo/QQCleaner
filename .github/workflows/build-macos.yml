@@ -17,6 +17,9 @@ jobs:
       - name: Cache cargo build
         uses: Swatinem/rust-cache@v2
 
+      - name: Install protoc
+        run: brew install protobuf
+
       - name: Build release
         run: cargo build --release
 
