@@ -13,10 +13,10 @@ impl Decryptor {
     pub fn new() -> Result<Self> {
         let key_path = Self::find_key_file()
             .context("未找到 sqlcipher.key 文件")?;
-        
+
         register_offset_vfs()
             .map_err(|e| anyhow::anyhow!("注册 offset VFS 失败: {:?}", e))?;
-        
+
         Ok(Decryptor { key_path })
     }
 
@@ -25,19 +25,16 @@ impl Decryptor {
             .ok()
             .map(|p| p.join("sqlcipher.key"));
 
-        let user_config_key = dirs::config_dir()
-            .map(|p| p.join("qqcleaner").join("sqlcipher.key"));
+        let user_config_key = dirs::home_dir()
+            .map(|p| p.join(".config").join("qqcleaner").join("sqlcipher.key"));
 
-        [current_dir_key, user_config_key]
-            .into_iter()
-            .flatten()
-            .find(|p| p.exists())
+        [current_dir_key, user_config_key].into_iter().flatten().find(|p| p.exists())
     }
 
     fn read_key(&self) -> Result<String> {
         let key = fs::read_to_string(&self.key_path)
             .with_context(|| format!("无法读取密钥文件: {:?}", self.key_path))?;
-        
+
         Ok(key.trim().to_string())
     }
 
@@ -51,8 +48,8 @@ impl Decryptor {
 
         let key = self.read_key()?;
 
-        let conn = Connection::open(format!("file:{}?vfs={}", 
-            encrypted_path.display(), 
+        let conn = Connection::open(format!("file:{}?vfs={}",
+            encrypted_path.display(),
             OFFSET_VFS_NAME
         ))
         .with_context(|| format!("打开加密数据库失败: {:?}", encrypted_path))?;
@@ -61,7 +58,7 @@ impl Decryptor {
             key,
             cipher_hmac_algorithm: None,
         };
-        
+
         try_decrypt_db(&conn, decrypt_info)
             .map_err(|e| anyhow::anyhow!("解密失败: {:?}", e))?;
 
@@ -91,7 +88,7 @@ impl Decryptor {
 
         for db_name in db_names {
             let encrypted_db = nt_db_path.join(db_name);
-            let output_db = output_path.join(format!("{}.clean.db", 
+            let output_db = output_path.join(format!("{}.clean.db",
                 db_name.trim_end_matches(".db")));
 
             if encrypted_db.exists() {
