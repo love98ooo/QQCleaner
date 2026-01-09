@@ -8,6 +8,7 @@ mod ui;
 mod event;
 mod migrator;
 mod logger;
+mod decryptor;
 
 use anyhow::{Context, Result};
 use std::path::PathBuf;
@@ -25,6 +26,7 @@ use app::{App, LogLevel, ConfirmAction};
 use event::{EventHandler, AppEvent};
 use migrator::{Migrator, MigrateOptions};
 use logger::Logger;
+use decryptor::Decryptor;
 use std::sync::Arc;
 
 #[tokio::main]
@@ -95,8 +97,57 @@ async fn initialize_app() -> Result<(Vec<crate::models::GroupStats>, PathBuf)> {
 
     println!("✓ 找到数据目录");
 
-    let files_db = config.get_files_db_path();
-    let group_db = config.get_group_db_path();
+    println!("正在检查数据库状态...");
+
+    let local_db_dir = config.get_db_dir();
+    let local_files_db = config.get_files_db_path_in(&local_db_dir);
+    let local_group_db = config.get_group_db_path_in(&local_db_dir);
+
+    let (files_db, group_db) = if local_files_db.exists() && local_group_db.exists() {
+        println!("✓ 使用本地已解密的数据库: {:?}", local_db_dir);
+        (local_files_db, local_group_db)
+    } else {
+        match Decryptor::new() {
+            Ok(decryptor) => {
+                println!("✓ 找到密钥文件: {:?}", decryptor.get_key_path());
+                println!("检测到需要解密数据库");
+
+                let nt_db_dir = nt_qq_dir.join("nt_db");
+
+                let output_dir = if local_db_dir.exists() || local_db_dir.parent().map(|p| p.exists()).unwrap_or(false) {
+                    if !local_db_dir.exists() {
+                        std::fs::create_dir_all(&local_db_dir)
+                            .with_context(|| format!("创建本地数据库目录失败: {:?}", local_db_dir))?;
+                    }
+                    println!("使用本地目录存储解密数据库: {:?}", local_db_dir);
+                    local_db_dir.clone()
+                } else {
+                    let temp_dir = config.get_temp_db_dir()?;
+                    println!("使用临时目录存储解密数据库: {:?}", temp_dir);
+                    temp_dir
+                };
+
+                let db_files = ["files_in_chat.db", "group_info.db"];
+
+                decryptor.decrypt_databases(&nt_db_dir, &output_dir, &db_files)
+                    .context("数据库解密失败")?;
+
+                println!("✓ 数据库解密完成");
+
+                (
+                    config.get_files_db_path_in(&output_dir),
+                    config.get_group_db_path_in(&output_dir)
+                )
+            }
+            Err(e) => {
+                println!("⚠ 未找到密钥文件，跳过自动解密");
+                println!("  提示：请将 sqlcipher.key 放在项目根目录或 ~/.config/qqcleaner/ 目录");
+                println!("  错误详情: {}", e);
+                println!("  或者手动将解密后的数据库放置到: {:?}", local_db_dir);
+                anyhow::bail!("无法获取数据库文件");
+            }
+        }
+    };
 
     if !files_db.exists() {
         anyhow::bail!("未找到文件数据库: {:?}", files_db);

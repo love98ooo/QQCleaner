@@ -18,8 +18,16 @@ pub struct MigrateOptions {
 
 impl Default for MigrateOptions {
     fn default() -> Self {
+        let target_dir = if cfg!(debug_assertions) {
+            PathBuf::from("./migration")
+        } else {
+            dirs::document_dir()
+                .unwrap_or_else(|| PathBuf::from("~"))
+                .join("QQCleaner")
+        };
+        
         Self {
-            target_dir: PathBuf::from("./backup"),
+            target_dir,
             keep_structure: true,
             delete_after_migrate: false,
         }

@@ -134,12 +134,23 @@ impl App {
         let filtered_stats: Vec<usize> = (0..len).collect();
         let selected_groups = vec![false; len];
 
-        let migrate_presets = vec![
-            PathBuf::from("./migration"),
-            dirs::document_dir()
-                .unwrap_or_else(|| PathBuf::from("~"))
-                .join("qqnt_migration"),
-        ];
+        let migrate_presets = if cfg!(debug_assertions) {
+            vec![
+                PathBuf::from("./migration"),
+                dirs::document_dir()
+                    .unwrap_or_else(|| PathBuf::from("~"))
+                    .join("qqnt_migration"),
+            ]
+        } else {
+            vec![
+                dirs::document_dir()
+                    .unwrap_or_else(|| PathBuf::from("~"))
+                    .join("QQCleaner"),
+                dirs::desktop_dir()
+                    .unwrap_or_else(|| PathBuf::from("~"))
+                    .join("QQCleaner"),
+            ]
+        };
 
         let mut app = Self {
             should_quit: false,

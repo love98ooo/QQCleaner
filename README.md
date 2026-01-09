@@ -7,10 +7,12 @@
 
 ## Steps to Use
 
-1. 参考 [QQDecrypt](https://docs.aaqwq.top/about/projects.html) 获取 sqlcipher key
-2. 将 QQNT 的 `nt_db` 目录复制到项目根目录
-3. 使用 [ntdb_unwrap](https://github.com/artiga033/ntdb_unwrap) 解密 `nt_db` 中的 `files_in_chat.db` 和 `group_info.db` 文件
-4. 运行 `cargo run --release`
+1. 参考 [QQDecrypt](https://docs.aaqwq.top/about/projects.html) 获取密钥，保存为 `sqlcipher.key` 放在项目根目录或 `~/.config/qqcleaner/`
+2. 运行 `cargo run --release`
+
+程序会自动解密数据库并启动 TUI 界面。已解密的数据库会被缓存，无需重复解密。
+
+日志保存在 `./logs/`（debug）或 `~/Library/Logs/qqcleaner/`（release）
 
 ## Configuration
 
@@ -36,7 +38,7 @@ group_db_name = "group_info.clean.db"
 - [ ] 支持更多文件类型（视频、语音等）
 - [ ] 适配 Windows 平台
 - [ ] 支持私聊、频道等场景的图片清理
-- [ ] 集成 `ntdb_unwrap` 简化操作流程
+- [x] 集成 `ntdb_unwrap` 简化操作流程
 
 ## License
 
