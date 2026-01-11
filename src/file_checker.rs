@@ -189,4 +189,21 @@ impl FileChecker {
 
         Ok((total_deleted, total_failed))
     }
+
+    pub async fn update_group_stats(&self, stats: &mut GroupStats) -> Result<()> {
+        let updated_files = self.check_files_exist_with_size(&stats.files).await?;
+
+        let exist_count = updated_files.iter().filter(|f| f.actual_size.is_some()).count();
+        let missing_count = updated_files.len() - exist_count;
+        let total_size: u64 = updated_files.iter()
+            .filter_map(|f| f.actual_size)
+            .sum();
+
+        stats.total_size = total_size;
+        stats.exist_count = exist_count;
+        stats.missing_count = missing_count;
+        stats.files = updated_files;
+
+        Ok(())
+    }
 }

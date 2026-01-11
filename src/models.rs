@@ -46,12 +46,6 @@ pub struct GroupStats {
     pub files: Vec<FileInfo>,
 }
 
-impl GroupStats {
-    pub fn format_size(&self) -> String {
-        format_bytes(self.total_size)
-    }
-}
-
 /// 格式化字节大小
 pub fn format_bytes(bytes: u64) -> String {
     const KB: u64 = 1024;

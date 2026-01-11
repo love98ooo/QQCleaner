@@ -200,7 +200,7 @@ async fn run_app(
 
         if pending_migrate {
             pending_migrate = false;
-            execute_migrate(app, migrator).await?;
+            execute_migrate(app, migrator, checker).await?;
         }
 
         match event_handler.next()? {
@@ -251,6 +251,7 @@ async fn execute_clean(app: &mut App, checker: &FileChecker) -> Result<()> {
 
     let time_range = app.time_range;
     let mut current = 0;
+    let mut updated_indices = Vec::new();
 
     for (idx, group_name, file_count) in selected_info {
         app.add_log(LogLevel::Info, &format!("清理群组: {}", group_name));
@@ -272,6 +273,10 @@ async fn execute_clean(app: &mut App, checker: &FileChecker) -> Result<()> {
                         &format!("{}: 成功删除 {} 个文件", group_name, deleted),
                     );
                 }
+                
+                if deleted > 0 {
+                    updated_indices.push(idx);
+                }
             }
             Err(e) => {
                 app.add_log(
@@ -282,6 +287,22 @@ async fn execute_clean(app: &mut App, checker: &FileChecker) -> Result<()> {
         }
     }
 
+    if !updated_indices.is_empty() {
+        app.add_log(LogLevel::Info, "正在更新统计信息...");
+        for idx in updated_indices {
+            if let Some(stat) = app.stats.get_mut(idx) {
+                let group_name = stat.group_name.clone();
+                if let Err(e) = checker.update_group_stats(stat).await {
+                    app.add_log(
+                        LogLevel::Warning,
+                        &format!("更新群组 {} 统计信息失败: {}", group_name, e),
+                    );
+                }
+            }
+        }
+        app.apply_sort();
+    }
+
     app.finish_operation();
     app.add_log(LogLevel::Success, "清理操作完成");
     app.selected_groups = vec![false; app.stats.len()];
@@ -289,7 +310,7 @@ async fn execute_clean(app: &mut App, checker: &FileChecker) -> Result<()> {
     Ok(())
 }
 
-async fn execute_migrate(app: &mut App, migrator: &Migrator) -> Result<()> {
+async fn execute_migrate(app: &mut App, migrator: &Migrator, checker: &FileChecker) -> Result<()> {
     let selected_info: Vec<(usize, String, usize)> = app.selected_groups
         .iter()
         .enumerate()
@@ -314,10 +335,13 @@ async fn execute_migrate(app: &mut App, migrator: &Migrator) -> Result<()> {
     let options = MigrateOptions {
         target_dir: app.migrate_target_path.clone(),
         keep_structure: true,
-        delete_after_migrate: false,
+        delete_after_migrate: !app.get_migrate_keep_original(),
     };
 
     let mut current = 0;
+    let mut updated_indices = Vec::new();
+    let should_update = !app.get_migrate_keep_original();
+
     for (idx, group_name, file_count) in selected_info {
         app.add_log(LogLevel::Info, &format!("迁移群组: {}", group_name));
 
@@ -349,6 +373,10 @@ async fn execute_migrate(app: &mut App, migrator: &Migrator) -> Result<()> {
                         ),
                     );
                 }
+
+                if should_update && result.migrated_files > 0 {
+                    updated_indices.push(idx);
+                }
             }
             Err(e) => {
                 app.add_log(
@@ -357,6 +385,22 @@ async fn execute_migrate(app: &mut App, migrator: &Migrator) -> Result<()> {
                 );
             }
         }
+    }
+
+    if !updated_indices.is_empty() {
+        app.add_log(LogLevel::Info, "正在更新统计信息...");
+        for idx in updated_indices {
+            if let Some(stat) = app.stats.get_mut(idx) {
+                let group_name = stat.group_name.clone();
+                if let Err(e) = checker.update_group_stats(stat).await {
+                    app.add_log(
+                        LogLevel::Warning,
+                        &format!("更新群组 {} 统计信息失败: {}", group_name, e),
+                    );
+                }
+            }
+        }
+        app.apply_sort();
     }
 
     app.finish_operation();

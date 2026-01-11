@@ -3,13 +3,13 @@ use ratatui::{
     style::{Color, Modifier, Style},
     text::{Line, Span},
     widgets::{
-        Block, Borders, Paragraph, List, ListItem, Tabs, Clear,
+        Block, Borders, Paragraph, Tabs, Clear,
         Wrap, BarChart, Row, Table, Cell,
     },
     Frame,
 };
 
-use crate::app::{App, AppTab, LogLevel};
+use crate::app::{App, AppTab};
 use crate::models::format_bytes;
 
 pub fn draw(f: &mut Frame, app: &App) {
@@ -24,11 +24,9 @@ pub fn draw(f: &mut Frame, app: &App) {
 
     render_header(f, app, chunks[0]);
     match app.current_tab {
-        AppTab::Home => render_home(f, app, chunks[1]),
         AppTab::Analysis => render_analysis(f, app, chunks[1]),
         AppTab::Clean => render_clean(f, app, chunks[1]),
         AppTab::Migrate => render_migrate(f, app, chunks[1]),
-        AppTab::Logs => render_logs(f, app, chunks[1]),
     }
 
     render_status(f, app, chunks[2]);
@@ -87,15 +85,6 @@ fn render_status(f: &mut Frame, app: &App, area: Rect) {
     f.render_widget(status, area);
 }
 
-fn render_home(f: &mut Frame, app: &App, area: Rect) {
-    let chunks = Layout::default()
-        .direction(Direction::Horizontal)
-        .constraints([Constraint::Percentage(60), Constraint::Percentage(40)])
-        .split(area);
-
-    render_group_list(f, app, chunks[0], "群组列表");
-    render_group_detail(f, app, chunks[1]);
-}
 
 fn render_analysis(f: &mut Frame, app: &App, area: Rect) {
     let chunks = Layout::default()
@@ -132,55 +121,11 @@ fn render_migrate(f: &mut Frame, app: &App, area: Rect) {
     render_migrate_options(f, app, chunks[1]);
 }
 
-fn render_logs(f: &mut Frame, app: &App, area: Rect) {
-    let log_items: Vec<ListItem> = app
-        .logs
-        .iter()
-        .rev()
-        .take(100)
-        .map(|log| {
-            let style = match log.level {
-                LogLevel::Info => Style::default().fg(Color::Cyan),
-                LogLevel::Success => Style::default().fg(Color::Green),
-                LogLevel::Warning => Style::default().fg(Color::Yellow),
-                LogLevel::Error => Style::default().fg(Color::Red),
-            };
-
-            let level_str = match log.level {
-                LogLevel::Info => "INFO",
-                LogLevel::Success => "OK",
-                LogLevel::Warning => "WARN",
-                LogLevel::Error => "ERR",
-            };
-
-            let content = Line::from(vec![
-                Span::styled(
-                    format!("[{}] ", log.timestamp),
-                    Style::default().fg(Color::DarkGray),
-                ),
-                Span::styled(
-                    format!("{:<4} ", level_str),
-                    style.add_modifier(Modifier::BOLD),
-                ),
-                Span::raw(&log.message),
-            ]);
-
-            ListItem::new(content)
-        })
-        .collect();
-
-    let logs_list = List::new(log_items)
-        .block(Block::default()
-            .borders(Borders::ALL)
-            .title(" 操作日志 [c]清空 "));
-
-    f.render_widget(logs_list, area);
-}
 
 fn render_group_list(f: &mut Frame, app: &App, area: Rect, title: &str) {
     let visible_height = (area.height as usize).saturating_sub(2);
     let total_items = app.filtered_stats.len();
-    
+
     let scroll_offset = if total_items == 0 {
         0
     } else if app.selected_index < visible_height / 2 {
@@ -193,7 +138,7 @@ fn render_group_list(f: &mut Frame, app: &App, area: Rect, title: &str) {
 
     let visible_end = (scroll_offset + visible_height).min(total_items);
 
-    let items: Vec<ListItem> = app
+    let rows: Vec<Row> = app
         .filtered_stats
         .iter()
         .enumerate()
@@ -211,43 +156,44 @@ fn render_group_list(f: &mut Frame, app: &App, area: Rect, title: &str) {
                 stat.group_id.clone()
             };
 
-            let line = Line::from(vec![
-                Span::styled(
-                    checkbox,
-                    if is_selected {
-                        Style::default().fg(Color::Green).add_modifier(Modifier::BOLD)
-                    } else {
-                        Style::default().fg(Color::DarkGray)
-                    },
-                ),
-                Span::raw(" "),
-                Span::styled(
-                    format!("{:<30}", truncate(&group_display, 30)),
-                    if is_current {
-                        Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)
-                    } else {
-                        Style::default()
-                    },
-                ),
-                Span::raw(" "),
-                Span::styled(
-                    format!("{:>10}", stat.format_size()),
-                    Style::default().fg(Color::Cyan),
-                ),
-                Span::raw(" "),
-                Span::styled(
-                    format!("({}/{})", stat.exist_count, stat.file_count),
-                    Style::default().fg(Color::DarkGray),
-                ),
-            ]);
+            let checkbox_style = if is_selected {
+                Style::default().fg(Color::Green).add_modifier(Modifier::BOLD)
+            } else if is_current {
+                Style::default().fg(Color::White)
+            } else {
+                Style::default().fg(Color::DarkGray)
+            };
 
-            let style = if is_current {
+            let name_style = if is_current {
+                Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)
+            } else {
+                Style::default()
+            };
+
+            let count_style = if is_current {
+                Style::default().fg(Color::Gray)
+            } else {
+                Style::default().fg(Color::DarkGray)
+            };
+
+            let row_style = if is_current {
                 Style::default().bg(Color::DarkGray)
             } else {
                 Style::default()
             };
 
-            ListItem::new(line).style(style)
+            let size_in_range = app.group_size_in_range(stat);
+            let exist_count_in_range = app.group_exist_count_in_range(stat);
+            let file_count_in_range = app.group_file_count_in_range(stat);
+
+            Row::new(vec![
+                Cell::from(checkbox).style(checkbox_style),
+                Cell::from(group_display).style(name_style),
+                Cell::from(format_bytes(size_in_range)).style(Style::default().fg(Color::Cyan)),
+                Cell::from(format!("({}/{})", exist_count_in_range, file_count_in_range))
+                    .style(count_style),
+            ])
+            .style(row_style)
         })
         .collect();
 
@@ -268,72 +214,21 @@ fn render_group_list(f: &mut Frame, app: &App, area: Rect, title: &str) {
         title, scroll_indicator, sort_text
     );
 
-    let list = List::new(items)
-        .block(Block::default().borders(Borders::ALL).title(help_text));
+    let table = Table::new(
+        rows,
+        [
+            Constraint::Length(3),      // checkbox
+            Constraint::Min(10),        // 群名（自适应剩余空间）
+            Constraint::Length(10),     // 大小
+            Constraint::Length(12),     // 文件数
+        ],
+    )
+    .block(Block::default().borders(Borders::ALL).title(help_text))
+    .column_spacing(1);
 
-    f.render_widget(list, area);
+    f.render_widget(table, area);
 }
 
-fn render_group_detail(f: &mut Frame, app: &App, area: Rect) {
-    if let Some(&stat_idx) = app.filtered_stats.get(app.selected_index) {
-        let stat = &app.stats[stat_idx];
-
-        let text = vec![
-            Line::from(vec![
-                Span::styled("群组名称: ", Style::default().add_modifier(Modifier::BOLD)),
-                Span::raw(&stat.group_name),
-            ]),
-            Line::from(""),
-            Line::from(vec![
-                Span::styled("群号: ", Style::default().add_modifier(Modifier::BOLD)),
-                Span::raw(&stat.group_id),
-            ]),
-            Line::from(""),
-            Line::from(vec![
-                Span::styled("文件总数: ", Style::default().add_modifier(Modifier::BOLD)),
-                Span::styled(
-                    stat.file_count.to_string(),
-                    Style::default().fg(Color::Cyan),
-                ),
-            ]),
-            Line::from(""),
-            Line::from(vec![
-                Span::styled("存在文件: ", Style::default().add_modifier(Modifier::BOLD)),
-                Span::styled(
-                    stat.exist_count.to_string(),
-                    Style::default().fg(Color::Green),
-                ),
-            ]),
-            Line::from(""),
-            Line::from(vec![
-                Span::styled("缺失(已清理)文件: ", Style::default().add_modifier(Modifier::BOLD)),
-                Span::styled(
-                    stat.missing_count.to_string(),
-                    Style::default().fg(Color::Red),
-                ),
-            ]),
-            Line::from(""),
-            Line::from(vec![
-                Span::styled("占用空间: ", Style::default().add_modifier(Modifier::BOLD)),
-                Span::styled(
-                    stat.format_size(),
-                    Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD),
-                ),
-            ]),
-        ];
-
-        let paragraph = Paragraph::new(text)
-            .block(Block::default().borders(Borders::ALL).title(" 群组详情 "))
-            .wrap(Wrap { trim: true });
-
-        f.render_widget(paragraph, area);
-    } else {
-        let paragraph = Paragraph::new("暂无数据")
-            .block(Block::default().borders(Borders::ALL).title(" 群组详情 "))
-            .alignment(Alignment::Center);
-        f.render_widget(paragraph, area);
-    }
-}
 
 fn render_clean_options(f: &mut Frame, app: &App, area: Rect) {
     let selected_count = app.selected_count();
@@ -400,6 +295,7 @@ fn render_clean_options(f: &mut Frame, app: &App, area: Rect) {
 fn render_migrate_options(f: &mut Frame, app: &App, area: Rect) {
     let selected_count = app.selected_count();
     let selected_size = app.selected_total_size();
+    let deletable_size = app.selected_deletable_size();
 
     // 显示当前路径索引和总数
     let path_indicator = format!("({}/{})", app.migrate_path_index + 1, app.migrate_presets.len());
@@ -427,10 +323,26 @@ fn render_migrate_options(f: &mut Frame, app: &App, area: Rect) {
         ]),
         Line::from(""),
         Line::from(vec![
-            Span::styled("文件大小: ", Style::default().add_modifier(Modifier::BOLD)),
+            Span::styled("文件总大小: ", Style::default().add_modifier(Modifier::BOLD)),
             Span::styled(
                 format_bytes(selected_size),
-                Style::default().fg(Color::Green),
+                Style::default().fg(Color::Cyan),
+            ),
+        ]),
+        Line::from(""),
+        Line::from(vec![
+            Span::styled("范围内大小: ", Style::default().add_modifier(Modifier::BOLD)),
+            Span::styled(
+                format_bytes(deletable_size),
+                Style::default().fg(Color::Green).add_modifier(Modifier::BOLD),
+            ),
+        ]),
+        Line::from(""),
+        Line::from(vec![
+            Span::styled("时间范围: ", Style::default().add_modifier(Modifier::BOLD)),
+            Span::styled(
+                app.time_range.description(),
+                Style::default().fg(Color::Yellow),
             ),
         ]),
         Line::from(""),
@@ -446,6 +358,11 @@ fn render_migrate_options(f: &mut Frame, app: &App, area: Rect) {
         Line::from("─".repeat(35)),
         Line::from(""),
         Line::from(vec![
+            Span::styled("[t] ", Style::default().fg(Color::Cyan)),
+            Span::raw("切换时间范围"),
+        ]),
+        Line::from(""),
+        Line::from(vec![
             Span::styled("[←→/p] ", Style::default().fg(Color::Cyan)),
             Span::raw("切换路径"),
         ]),
@@ -453,11 +370,6 @@ fn render_migrate_options(f: &mut Frame, app: &App, area: Rect) {
         Line::from(vec![
             Span::styled("[m] ", Style::default().fg(Color::Green)),
             Span::raw("开始迁移"),
-        ]),
-        Line::from(""),
-        Line::from(vec![
-            Span::styled("提示: ", Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)),
-            Span::raw("迁移后原文件保留"),
         ]),
     ];
 
@@ -469,7 +381,7 @@ fn render_migrate_options(f: &mut Frame, app: &App, area: Rect) {
 }
 
 fn render_top_groups(f: &mut Frame, app: &App, area: Rect) {
-    let headers = ["群组名称", "文件数", "占用空间"];
+    let headers = ["群组名称", "文件数(范围内)", "占用空间(范围内)"];
     let header_cells = headers.iter().map(|h| {
         Cell::from(*h).style(Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD))
     });
@@ -480,10 +392,13 @@ fn render_top_groups(f: &mut Frame, app: &App, area: Rect) {
         .take(10)
         .map(|stat| {
             let group_display = truncate(&stat.group_name, 30);
+            let exist_in_range = app.group_exist_count_in_range(stat);
+            let file_count_in_range = app.group_file_count_in_range(stat);
+            let size_in_range = app.group_size_in_range(stat);
             Row::new(vec![
                 Cell::from(group_display),
-                Cell::from(stat.file_count.to_string()),
-                Cell::from(stat.format_size()),
+                Cell::from(format!("{}/{}", exist_in_range, file_count_in_range)),
+                Cell::from(format_bytes(size_in_range)),
             ])
         })
         .collect();
@@ -506,6 +421,9 @@ fn render_time_distribution(f: &mut Frame, app: &App, area: Rect) {
 
     for stat in &app.stats {
         for file in &stat.files {
+            if !app.time_range.should_delete(file.msg_time) {
+                continue;
+            }
             if let Some(datetime) = DateTime::<Utc>::from_timestamp(file.msg_time, 0) {
                 let month_key = format!("{}-{:02}", datetime.year(), datetime.month());
                 let size = file.actual_size.unwrap_or(0);
@@ -515,28 +433,36 @@ fn render_time_distribution(f: &mut Frame, app: &App, area: Rect) {
     }
 
     let mut month_vec: Vec<_> = month_stats.into_iter().collect();
-    month_vec.sort_by(|a, b| b.0.cmp(&a.0));
-    month_vec.truncate(6);
-    month_vec.reverse();
+    month_vec.sort_by(|a, b| a.0.cmp(&b.0));
+
+    let bar_width = 8u16;
+    let bar_gap = 1u16;
+    let available_width = area.width.saturating_sub(2);
+    let max_bars = (available_width / (bar_width + bar_gap)).max(1) as usize;
+
+    let skip_count = month_vec.len().saturating_sub(max_bars);
+    let month_vec: Vec<_> = month_vec.into_iter().skip(skip_count).collect();
 
     let data: Vec<(&str, u64)> = month_vec
         .iter()
         .map(|(month, size)| (month.as_str(), *size / 1024 / 1024))
         .collect();
 
+    let title = format!(" 文件大小时间分布 (MB) - {} ", app.time_range.description());
+
     if !data.is_empty() {
         let chart = BarChart::default()
-            .block(Block::default().borders(Borders::ALL).title(" 文件大小时间分布 (MB) "))
+            .block(Block::default().borders(Borders::ALL).title(title))
             .data(&data)
-            .bar_width(9)
-            .bar_gap(1)
+            .bar_width(bar_width)
+            .bar_gap(bar_gap)
             .bar_style(Style::default().fg(Color::Cyan))
             .value_style(Style::default().fg(Color::White));
 
         f.render_widget(chart, area);
     } else {
         let paragraph = Paragraph::new("暂无数据")
-            .block(Block::default().borders(Borders::ALL).title(" 文件大小时间分布 "))
+            .block(Block::default().borders(Borders::ALL).title(title))
             .alignment(Alignment::Center);
         f.render_widget(paragraph, area);
     }
@@ -549,9 +475,16 @@ fn render_statistics_summary(f: &mut Frame, app: &App, area: Rect) {
     let total_exist: usize = app.stats.iter().map(|s| s.exist_count).sum();
     let total_missing: usize = app.stats.iter().map(|s| s.missing_count).sum();
 
+    let range_files: usize = app.stats.iter().map(|s| app.group_file_count_in_range(s)).sum();
+    let range_size: u64 = app.stats.iter().map(|s| app.group_size_in_range(s)).sum();
+    let range_exist: usize = app.stats.iter().map(|s| app.group_exist_count_in_range(s)).sum();
+
     let text = vec![
         Line::from(vec![
             Span::styled("统计摘要", Style::default().add_modifier(Modifier::BOLD).fg(Color::Yellow)),
+            Span::raw("  "),
+            Span::styled("[t] 时间范围: ", Style::default().fg(Color::DarkGray)),
+            Span::styled(app.time_range.description(), Style::default().fg(Color::Yellow)),
         ]),
         Line::from(""),
         Line::from(vec![
@@ -562,7 +495,15 @@ fn render_statistics_summary(f: &mut Frame, app: &App, area: Rect) {
             Span::styled(total_files.to_string(), Style::default().fg(Color::Cyan)),
             Span::raw("  "),
             Span::styled("总大小: ", Style::default().add_modifier(Modifier::BOLD)),
-            Span::styled(format_bytes(total_size), Style::default().fg(Color::Green).add_modifier(Modifier::BOLD)),
+            Span::styled(format_bytes(total_size), Style::default().fg(Color::Cyan)),
+        ]),
+        Line::from(""),
+        Line::from(vec![
+            Span::styled("范围内文件: ", Style::default().add_modifier(Modifier::BOLD)),
+            Span::styled(format!("{}/{}", range_exist, range_files), Style::default().fg(Color::Green).add_modifier(Modifier::BOLD)),
+            Span::raw("  "),
+            Span::styled("范围内大小: ", Style::default().add_modifier(Modifier::BOLD)),
+            Span::styled(format_bytes(range_size), Style::default().fg(Color::Green).add_modifier(Modifier::BOLD)),
         ]),
         Line::from(""),
         Line::from(vec![
@@ -605,12 +546,16 @@ fn render_help_dialog(f: &mut Frame) {
             Span::raw("切换标签页"),
         ]),
         Line::from(vec![
-            Span::styled("  [1-5] ", Style::default().fg(Color::Cyan)),
+            Span::styled("  [1-3] ", Style::default().fg(Color::Cyan)),
             Span::raw("快速跳转到对应标签页"),
+        ]),
+        Line::from(vec![
+            Span::styled("  [t] ", Style::default().fg(Color::Cyan)),
+            Span::raw("切换时间范围"),
         ]),
         Line::from(""),
         Line::from(vec![
-            Span::styled("列表操作:", Style::default().add_modifier(Modifier::BOLD)),
+            Span::styled("群组操作:", Style::default().add_modifier(Modifier::BOLD)),
         ]),
         Line::from(vec![
             Span::styled("  [↑↓/jk] ", Style::default().fg(Color::Cyan)),
@@ -641,10 +586,6 @@ fn render_help_dialog(f: &mut Frame) {
             Span::styled("清理操作:", Style::default().add_modifier(Modifier::BOLD)),
         ]),
         Line::from(vec![
-            Span::styled("  [t] ", Style::default().fg(Color::Cyan)),
-            Span::raw("切换时间范围"),
-        ]),
-        Line::from(vec![
             Span::styled("  [d] ", Style::default().fg(Color::Red)),
             Span::raw("执行清理操作"),
         ]),
@@ -658,15 +599,7 @@ fn render_help_dialog(f: &mut Frame) {
         ]),
         Line::from(vec![
             Span::styled("  [m] ", Style::default().fg(Color::Green)),
-            Span::raw("执行迁移操作"),
-        ]),
-        Line::from(""),
-        Line::from(vec![
-            Span::styled("日志操作:", Style::default().add_modifier(Modifier::BOLD)),
-        ]),
-        Line::from(vec![
-            Span::styled("  [c] ", Style::default().fg(Color::Cyan)),
-            Span::raw("清空日志"),
+            Span::raw("执行迁移操作（确认时可选择是否保留原文件）"),
         ]),
     ];
 
@@ -682,7 +615,7 @@ fn render_help_dialog(f: &mut Frame) {
 }
 
 fn render_confirm_dialog(f: &mut Frame, app: &App) {
-    let area = centered_rect(50, 30, f.area());
+    let area = centered_rect(70, 40, f.area());
 
     let action_name = match app.confirm_action {
         Some(crate::app::ConfirmAction::Clean) => "清理",
@@ -693,7 +626,9 @@ fn render_confirm_dialog(f: &mut Frame, app: &App) {
     let selected_count = app.selected_count();
     let selected_size = format_bytes(app.selected_total_size());
 
-    let text = vec![
+    let is_migrate = matches!(app.confirm_action, Some(crate::app::ConfirmAction::Migrate));
+
+    let mut text = vec![
         Line::from(""),
         Line::from(vec![
             Span::styled(
@@ -702,25 +637,78 @@ fn render_confirm_dialog(f: &mut Frame, app: &App) {
             ),
         ]),
         Line::from(""),
-        Line::from(vec![
-            Span::raw(format!("将影响 {} 个群组", selected_count)),
-        ]),
-        Line::from(vec![
-            Span::raw(format!("总计: {}", selected_size)),
-        ]),
-        Line::from(""),
-        Line::from(vec![
-            Span::styled("此操作不可恢复！", Style::default().fg(Color::Red).add_modifier(Modifier::BOLD)),
-        ]),
-        Line::from(""),
-        Line::from(""),
-        Line::from(vec![
-            Span::styled("[Y] ", Style::default().fg(Color::Green)),
-            Span::raw("确认  "),
-            Span::styled("[N] ", Style::default().fg(Color::Red)),
-            Span::raw("取消"),
-        ]),
     ];
+
+    if is_migrate {
+        text.push(Line::from(vec![
+            Span::raw(format!("将迁移 {} 个群组", selected_count)),
+        ]));
+        text.push(Line::from(vec![
+            Span::raw(format!("迁移大小: {}", selected_size)),
+        ]));
+    } else {
+        text.push(Line::from(vec![
+            Span::raw(format!("将影响 {} 个群组", selected_count)),
+        ]));
+        text.push(Line::from(vec![
+            Span::raw(format!("总计: {}", selected_size)),
+        ]));
+    }
+
+    text.push(Line::from(""));
+
+    if is_migrate {
+        // 显示目标路径
+        let path_display = app.migrate_target_path.display().to_string();
+        let max_path_len = 50;
+        let truncated_path = if path_display.len() > max_path_len {
+            format!("...{}", &path_display[path_display.len() - max_path_len + 3..])
+        } else {
+            path_display
+        };
+        let path_indicator = format!("({}/{})", app.migrate_path_index + 1, app.migrate_presets.len());
+
+        text.push(Line::from(vec![
+            Span::styled("目标路径: ", Style::default().add_modifier(Modifier::BOLD)),
+            Span::styled(path_indicator, Style::default().fg(Color::DarkGray)),
+        ]));
+        text.push(Line::from(vec![
+            Span::raw("  "),
+            Span::styled(truncated_path, Style::default().fg(Color::Cyan)),
+        ]));
+        text.push(Line::from(vec![
+            Span::styled("  (←→/p 切换)", Style::default().fg(Color::DarkGray)),
+        ]));
+        text.push(Line::from(""));
+
+        let checkbox = if app.temp_migrate_keep_original { "[x]" } else { "[ ]" };
+        let checkbox_style = if app.temp_migrate_keep_original {
+            Style::default().fg(Color::Green).add_modifier(Modifier::BOLD)
+        } else {
+            Style::default().fg(Color::Red).add_modifier(Modifier::BOLD)
+        };
+
+        text.push(Line::from(vec![
+            Span::styled(checkbox, checkbox_style),
+            Span::raw(" "),
+            Span::styled("保留原文件", Style::default().add_modifier(Modifier::BOLD)),
+            Span::styled(" (空格切换)", Style::default().fg(Color::DarkGray)),
+        ]));
+        text.push(Line::from(""));
+    } else {
+        text.push(Line::from(vec![
+            Span::styled("此操作不可恢复！", Style::default().fg(Color::Red).add_modifier(Modifier::BOLD)),
+        ]));
+        text.push(Line::from(""));
+    }
+
+    text.push(Line::from(""));
+    text.push(Line::from(vec![
+        Span::styled("[Y] ", Style::default().fg(Color::Green)),
+        Span::raw("确认  "),
+        Span::styled("[N/ESC] ", Style::default().fg(Color::Red)),
+        Span::raw("取消"),
+    ]));
 
     let paragraph = Paragraph::new(text)
         .block(Block::default()

@@ -52,6 +52,23 @@ pub fn handle_key_event(app: &mut crate::app::App, key: KeyEvent) {
             KeyCode::Char('n') | KeyCode::Char('N') | KeyCode::Esc => {
                 app.hide_confirm();
             }
+            KeyCode::Char(' ') => {
+                if matches!(app.confirm_action, Some(ConfirmAction::Migrate)) {
+                    app.toggle_confirm_migrate_option();
+                }
+            }
+            KeyCode::Left => {
+                if matches!(app.confirm_action, Some(ConfirmAction::Migrate)) {
+                    app.prev_migrate_path();
+                    app.add_log(crate::app::LogLevel::Info, &format!("迁移路径: {}", app.migrate_target_path.display()));
+                }
+            }
+            KeyCode::Right | KeyCode::Char('p') => {
+                if matches!(app.confirm_action, Some(ConfirmAction::Migrate)) {
+                    app.next_migrate_path();
+                    app.add_log(crate::app::LogLevel::Info, &format!("迁移路径: {}", app.migrate_target_path.display()));
+                }
+            }
             _ => {}
         }
         return;
@@ -92,16 +109,14 @@ pub fn handle_key_event(app: &mut crate::app::App, key: KeyEvent) {
         KeyCode::BackTab => {
             app.prev_tab();
         }
-        KeyCode::Char('1') => app.current_tab = AppTab::Home,
-        KeyCode::Char('2') => app.current_tab = AppTab::Analysis,
-        KeyCode::Char('3') => app.current_tab = AppTab::Clean,
-        KeyCode::Char('4') => app.current_tab = AppTab::Migrate,
-        KeyCode::Char('5') => app.current_tab = AppTab::Logs,
+        KeyCode::Char('1') => app.current_tab = AppTab::Analysis,
+        KeyCode::Char('2') => app.current_tab = AppTab::Clean,
+        KeyCode::Char('3') => app.current_tab = AppTab::Migrate,
         _ => {}
     }
 
     match app.current_tab {
-        AppTab::Home | AppTab::Clean | AppTab::Migrate => {
+        AppTab::Clean | AppTab::Migrate => {
             match key.code {
                 KeyCode::Down | KeyCode::Char('j') => {
                     app.next_item();
@@ -129,8 +144,23 @@ pub fn handle_key_event(app: &mut crate::app::App, key: KeyEvent) {
         _ => {}
     }
 
+    match key.code {
+        KeyCode::Char('t') => {
+            app.time_range = match app.time_range {
+                crate::time_range::TimeRange::All => crate::time_range::TimeRange::DaysAgo(7),
+                crate::time_range::TimeRange::DaysAgo(7) => crate::time_range::TimeRange::DaysAgo(30),
+                crate::time_range::TimeRange::DaysAgo(30) => crate::time_range::TimeRange::DaysAgo(90),
+                crate::time_range::TimeRange::DaysAgo(90) => crate::time_range::TimeRange::DaysAgo(180),
+                crate::time_range::TimeRange::DaysAgo(_) => crate::time_range::TimeRange::All,
+            };
+            app.add_log(crate::app::LogLevel::Info, &format!("时间范围: {}", app.time_range.description()));
+            return;
+        }
+        _ => {}
+    }
+
     match app.current_tab {
-        AppTab::Home | AppTab::Clean | AppTab::Migrate => {
+        AppTab::Clean | AppTab::Migrate => {
             match key.code {
                 KeyCode::Char('s') => {
                     app.sort_by = match app.sort_by {
@@ -152,16 +182,6 @@ pub fn handle_key_event(app: &mut crate::app::App, key: KeyEvent) {
 
     if app.current_tab == AppTab::Clean {
         match key.code {
-            KeyCode::Char('t') => {
-                app.time_range = match app.time_range {
-                    crate::time_range::TimeRange::All => crate::time_range::TimeRange::DaysAgo(7),
-                    crate::time_range::TimeRange::DaysAgo(7) => crate::time_range::TimeRange::DaysAgo(30),
-                    crate::time_range::TimeRange::DaysAgo(30) => crate::time_range::TimeRange::DaysAgo(90),
-                    crate::time_range::TimeRange::DaysAgo(90) => crate::time_range::TimeRange::DaysAgo(180),
-                    crate::time_range::TimeRange::DaysAgo(_) => crate::time_range::TimeRange::All,
-                };
-                app.add_log(crate::app::LogLevel::Info, &format!("时间范围: {}", app.time_range.description()));
-            }
             KeyCode::Char('d') | KeyCode::Delete => {
                 if app.selected_count() > 0 {
                     app.show_confirm(ConfirmAction::Clean);
@@ -193,16 +213,6 @@ pub fn handle_key_event(app: &mut crate::app::App, key: KeyEvent) {
             KeyCode::Right => {
                 app.next_migrate_path();
                 app.add_log(crate::app::LogLevel::Info, &format!("迁移路径: {}", app.migrate_target_path.display()));
-            }
-            _ => {}
-        }
-    }
-
-    if app.current_tab == AppTab::Logs {
-        match key.code {
-            KeyCode::Char('c') => {
-                app.logs.clear();
-                app.add_log(crate::app::LogLevel::Info, "日志已清空");
             }
             _ => {}
         }

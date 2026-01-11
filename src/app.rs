@@ -6,26 +6,22 @@ use std::sync::Arc;
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum AppTab {
-    Home,
     Analysis,
     Clean,
     Migrate,
-    Logs,
 }
 
 impl AppTab {
     pub fn titles() -> Vec<&'static str> {
-        vec!["首页", "分析", "清理", "迁移", "日志"]
+        vec!["分析", "清理", "迁移"]
     }
 
     pub fn from_index(index: usize) -> Self {
         match index {
-            0 => AppTab::Home,
-            1 => AppTab::Analysis,
-            2 => AppTab::Clean,
-            3 => AppTab::Migrate,
-            4 => AppTab::Logs,
-            _ => AppTab::Home,
+            0 => AppTab::Analysis,
+            1 => AppTab::Clean,
+            2 => AppTab::Migrate,
+            _ => AppTab::Analysis,
         }
     }
 }
@@ -64,13 +60,6 @@ impl Default for GroupFilter {
 }
 
 
-#[derive(Debug, Clone)]
-pub struct LogEntry {
-    pub timestamp: String,
-    pub level: LogLevel,
-    pub message: String,
-}
-
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum LogLevel {
     Info,
@@ -108,7 +97,6 @@ pub struct App {
     pub sort_by: SortBy,
     pub filter: GroupFilter,
     pub time_range: TimeRange,
-    pub logs: Vec<LogEntry>,
     pub progress: OperationProgress,
     pub migrate_target_path: PathBuf,
     pub migrate_presets: Vec<PathBuf>,
@@ -117,6 +105,7 @@ pub struct App {
     pub show_filter_dialog: bool,
     pub show_confirm_dialog: bool,
     pub confirm_action: Option<ConfirmAction>,
+    pub temp_migrate_keep_original: bool,
     pub temp_filter: GroupFilter,
     pub filter_cursor: usize,
     pub logger: Arc<Logger>,
@@ -154,7 +143,7 @@ impl App {
 
         let mut app = Self {
             should_quit: false,
-            current_tab: AppTab::Home,
+            current_tab: AppTab::Analysis,
             stats,
             filtered_stats,
             selected_index: 0,
@@ -162,7 +151,6 @@ impl App {
             sort_by: SortBy::Size,
             filter: GroupFilter::default(),
             time_range: TimeRange::All,
-            logs: Vec::new(),
             progress: OperationProgress::default(),
             migrate_target_path: migrate_presets[0].clone(),
             migrate_presets,
@@ -171,6 +159,7 @@ impl App {
             show_filter_dialog: false,
             show_confirm_dialog: false,
             confirm_action: None,
+            temp_migrate_keep_original: true,
             temp_filter: GroupFilter::default(),
             filter_cursor: 0,
             logger,
@@ -311,13 +300,6 @@ impl App {
     }
 
     pub fn add_log(&mut self, level: LogLevel, message: &str) {
-        let timestamp = chrono::Local::now().format("%H:%M:%S").to_string();
-        self.logs.push(LogEntry {
-            timestamp: timestamp.clone(),
-            level,
-            message: message.to_string(),
-        });
-
         let level_str = match level {
             LogLevel::Info => "INFO",
             LogLevel::Success => "OK",
@@ -352,11 +334,22 @@ impl App {
     pub fn show_confirm(&mut self, action: ConfirmAction) {
         self.confirm_action = Some(action);
         self.show_confirm_dialog = true;
+        if action == ConfirmAction::Migrate {
+            self.temp_migrate_keep_original = true;
+        }
     }
 
     pub fn hide_confirm(&mut self) {
         self.show_confirm_dialog = false;
         self.confirm_action = None;
+    }
+
+    pub fn toggle_confirm_migrate_option(&mut self) {
+        self.temp_migrate_keep_original = !self.temp_migrate_keep_original;
+    }
+
+    pub fn get_migrate_keep_original(&self) -> bool {
+        self.temp_migrate_keep_original
     }
 
     pub fn selected_count(&self) -> usize {
@@ -377,7 +370,6 @@ impl App {
             .sum()
     }
 
-    /// 根据时间范围计算选中群组可删除的文件总大小
     pub fn selected_deletable_size(&self) -> u64 {
         self.selected_groups
             .iter()
@@ -393,6 +385,29 @@ impl App {
             .filter(|file| self.time_range.should_delete(file.msg_time))
             .filter_map(|file| file.actual_size)
             .sum()
+    }
+
+    pub fn group_size_in_range(&self, stat: &GroupStats) -> u64 {
+        stat.files
+            .iter()
+            .filter(|file| self.time_range.should_delete(file.msg_time))
+            .filter_map(|file| file.actual_size)
+            .sum()
+    }
+
+    pub fn group_exist_count_in_range(&self, stat: &GroupStats) -> usize {
+        stat.files
+            .iter()
+            .filter(|file| file.actual_size.is_some())
+            .filter(|file| self.time_range.should_delete(file.msg_time))
+            .count()
+    }
+
+    pub fn group_file_count_in_range(&self, stat: &GroupStats) -> usize {
+        stat.files
+            .iter()
+            .filter(|file| self.time_range.should_delete(file.msg_time))
+            .count()
     }
 
     pub fn next_migrate_path(&mut self) {
