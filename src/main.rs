@@ -1,32 +1,32 @@
-mod models;
-mod database;
-mod file_checker;
-mod time_range;
-mod config;
 mod app;
-mod ui;
-mod event;
-mod migrator;
-mod logger;
+mod config;
+mod database;
 mod decryptor;
+mod event;
+mod file_checker;
+mod logger;
+mod migrator;
+mod models;
+mod time_range;
+mod ui;
 
 use anyhow::{Context, Result};
-use std::path::PathBuf;
 use crossterm::{
     event::{DisableMouseCapture, EnableMouseCapture},
     execute,
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
 };
 use ratatui::{backend::CrosstermBackend, Terminal};
+use std::path::PathBuf;
 
+use app::{App, ConfirmAction, LogLevel};
 use config::Config;
 use database::Database;
-use file_checker::FileChecker;
-use app::{App, LogLevel, ConfirmAction};
-use event::{EventHandler, AppEvent};
-use migrator::{Migrator, MigrateOptions};
-use logger::Logger;
 use decryptor::Decryptor;
+use event::{AppEvent, EventHandler};
+use file_checker::FileChecker;
+use logger::Logger;
+use migrator::{MigrateOptions, Migrator};
 use std::sync::Arc;
 
 #[tokio::main]
@@ -79,7 +79,10 @@ async fn initialize_app() -> Result<(Vec<crate::models::GroupStats>, PathBuf)> {
             let path = entry.path();
             if path.is_dir() {
                 if let Some(name) = path.file_name() {
-                    if name.to_string_lossy().starts_with(&config.paths.nt_qq_prefix) {
+                    if name
+                        .to_string_lossy()
+                        .starts_with(&config.paths.nt_qq_prefix)
+                    {
                         nt_qq_dir = Some(path);
                         break;
                     }
@@ -100,51 +103,129 @@ async fn initialize_app() -> Result<(Vec<crate::models::GroupStats>, PathBuf)> {
     println!("正在检查数据库状态...");
 
     let local_db_dir = config.get_db_dir();
+
+    // 显示当前使用的工作目录
+    #[cfg(debug_assertions)]
+    println!("数据库工作目录 (debug): {:?}", local_db_dir);
+
+    #[cfg(not(debug_assertions))]
+    println!("数据库工作目录 (release): {:?}", local_db_dir);
+
+    println!("\n=== 重要提示 ===");
+    println!("本程序不会自动访问或复制任何应用的数据。");
+    println!("如需使用本程序，您需要：");
+    println!("1. 手动复制数据库文件到工作目录");
+    println!("2. 确认您拥有对这些数据的合法访问权");
+    println!("3. 理解您正在访问的数据内容");
+    println!("4. 自行承担数据访问的法律责任");
+    println!("================\n");
     let local_files_db = config.get_files_db_path_in(&local_db_dir);
     let local_group_db = config.get_group_db_path_in(&local_db_dir);
 
+    // 检查是否已有解密后的数据库
     let (files_db, group_db) = if local_files_db.exists() && local_group_db.exists() {
-        println!("✓ 使用本地已解密的数据库: {:?}", local_db_dir);
+        println!("✓ 找到已解密的数据库: {:?}", local_db_dir);
         (local_files_db, local_group_db)
     } else {
+        // 检查用户是否手动复制了原始数据库
+        let source_files_db = local_db_dir.join("files_in_chat.db");
+        let source_group_db = local_db_dir.join("group_info.db");
+
+        if !source_files_db.exists() || !source_group_db.exists() {
+            println!("⚠ 未找到数据库文件");
+            println!("\n请按以下步骤操作：");
+            println!("1. 手动复制以下文件到工作目录：");
+            println!("   - files_in_chat.db");
+            println!("   - group_info.db");
+
+            // 获取 QQ 数据库源目录
+            let nt_db_source_dir = nt_qq_dir.join("nt_db");
+
+            println!("\n2. 源目录（从这里复制）：");
+            println!(
+                "   {:?}",
+                nt_db_source_dir
+                    .canonicalize()
+                    .unwrap_or(nt_db_source_dir.clone())
+            );
+
+            println!("\n3. 目标目录（复制到这里）：");
+            println!(
+                "   {:?}",
+                local_db_dir.canonicalize().unwrap_or(local_db_dir.clone())
+            );
+
+            if !local_db_dir.exists() {
+                std::fs::create_dir_all(&local_db_dir)
+                    .with_context(|| format!("创建数据库目录失败: {:?}", local_db_dir))?;
+                println!("\n✓ 已创建目标目录");
+            }
+
+            // 打开两个文件管理器窗口
+            println!("\n正在为您打开源目录和目标目录...");
+
+            #[cfg(target_os = "macos")]
+            {
+                let _ = std::process::Command::new("open")
+                    .arg(&nt_db_source_dir)
+                    .spawn();
+                std::thread::sleep(std::time::Duration::from_millis(200));
+                let _ = std::process::Command::new("open")
+                    .arg(&local_db_dir)
+                    .spawn();
+            }
+
+            #[cfg(target_os = "windows")]
+            {
+                let _ = std::process::Command::new("explorer")
+                    .arg(&nt_db_source_dir)
+                    .spawn();
+                std::thread::sleep(std::time::Duration::from_millis(200));
+                let _ = std::process::Command::new("explorer")
+                    .arg(&local_db_dir)
+                    .spawn();
+            }
+
+            #[cfg(target_os = "linux")]
+            {
+                let _ = std::process::Command::new("xdg-open")
+                    .arg(&nt_db_source_dir)
+                    .spawn();
+                std::thread::sleep(std::time::Duration::from_millis(200));
+                let _ = std::process::Command::new("xdg-open")
+                    .arg(&local_db_dir)
+                    .spawn();
+            }
+
+            println!("\n复制完成后，请重新运行本程序。");
+            anyhow::bail!("等待用户手动复制数据库文件");
+        }
+
+        // 用户已复制文件，现在进行解密
+        println!("✓ 找到数据库文件");
+
         match Decryptor::new() {
             Ok(decryptor) => {
                 println!("✓ 找到密钥文件: {:?}", decryptor.get_key_path());
-                println!("检测到需要解密数据库");
-
-                let nt_db_dir = nt_qq_dir.join("nt_db");
-
-                let output_dir = if local_db_dir.exists() || local_db_dir.parent().map(|p| p.exists()).unwrap_or(false) {
-                    if !local_db_dir.exists() {
-                        std::fs::create_dir_all(&local_db_dir)
-                            .with_context(|| format!("创建本地数据库目录失败: {:?}", local_db_dir))?;
-                    }
-                    println!("使用本地目录存储解密数据库: {:?}", local_db_dir);
-                    local_db_dir.clone()
-                } else {
-                    let temp_dir = config.get_temp_db_dir()?;
-                    println!("使用临时目录存储解密数据库: {:?}", temp_dir);
-                    temp_dir
-                };
+                println!("开始解密数据库...");
 
                 let db_files = ["files_in_chat.db", "group_info.db"];
-
-                decryptor.decrypt_databases(&nt_db_dir, &output_dir, &db_files)
+                decryptor
+                    .decrypt_databases(&local_db_dir, &local_db_dir, &db_files)
                     .context("数据库解密失败")?;
 
                 println!("✓ 数据库解密完成");
 
                 (
-                    config.get_files_db_path_in(&output_dir),
-                    config.get_group_db_path_in(&output_dir)
+                    config.get_files_db_path_in(&local_db_dir),
+                    config.get_group_db_path_in(&local_db_dir),
                 )
             }
             Err(e) => {
-                println!("⚠ 未找到密钥文件，跳过自动解密");
+                println!("⚠ 未找到密钥文件");
                 println!("  提示：请将 sqlcipher.key 放在项目根目录或 ~/.config/qqcleaner/ 目录");
                 println!("  错误详情: {}", e);
-                println!("  或者手动将解密后的数据库放置到: {:?}", local_db_dir);
-                anyhow::bail!("无法获取数据库文件");
+                anyhow::bail!("无法解密数据库：缺少密钥文件");
             }
         }
     };
@@ -157,16 +238,14 @@ async fn initialize_app() -> Result<(Vec<crate::models::GroupStats>, PathBuf)> {
         anyhow::bail!("未找到群组数据库: {:?}", group_db);
     }
 
-    let db = Database::new(&files_db, &group_db)
-        .context("打开数据库失败")?;
+    let db = Database::new(&files_db, &group_db).context("打开数据库失败")?;
     println!("✓ 数据库打开成功");
 
-    let group_files = db.group_files_by_peer()
-        .context("读取文件信息失败")?;
-    let groups = db.get_all_groups()
-        .context("读取群组信息失败")?;
+    let group_files = db.group_files_by_peer().context("读取文件信息失败")?;
+    let groups = db.get_all_groups().context("读取群组信息失败")?;
 
-    println!("✓ 找到 {} 个群组，共 {} 个文件",
+    println!(
+        "✓ 找到 {} 个群组，共 {} 个文件",
         group_files.len(),
         group_files.values().map(|v| v.len()).sum::<usize>()
     );
@@ -174,7 +253,9 @@ async fn initialize_app() -> Result<(Vec<crate::models::GroupStats>, PathBuf)> {
     println!("正在分析文件（这可能需要一些时间）...");
     let checker = FileChecker::new(nt_data_dir.clone());
     let group_files_vec: Vec<_> = group_files.into_iter().collect();
-    let stats = checker.generate_group_stats(group_files_vec, &groups).await?;
+    let stats = checker
+        .generate_group_stats(group_files_vec, &groups)
+        .await?;
     println!("✓ 分析完成\n");
 
     Ok((stats, nt_data_dir))
@@ -228,12 +309,15 @@ async fn run_app(
 }
 
 async fn execute_clean(app: &mut App, checker: &FileChecker) -> Result<()> {
-    let selected_info: Vec<(usize, String, usize)> = app.selected_groups
+    let selected_info: Vec<(usize, String, usize)> = app
+        .selected_groups
         .iter()
         .enumerate()
         .filter_map(|(idx, &selected)| {
             if selected {
-                app.stats.get(idx).map(|s| (idx, s.group_name.clone(), s.file_count))
+                app.stats
+                    .get(idx)
+                    .map(|s| (idx, s.group_name.clone(), s.file_count))
             } else {
                 None
             }
@@ -244,7 +328,10 @@ async fn execute_clean(app: &mut App, checker: &FileChecker) -> Result<()> {
         return Ok(());
     }
 
-    app.add_log(LogLevel::Info, &format!("开始清理 {} 个群组", selected_info.len()));
+    app.add_log(
+        LogLevel::Info,
+        &format!("开始清理 {} 个群组", selected_info.len()),
+    );
 
     let total_files: usize = selected_info.iter().map(|(_, _, count)| count).sum();
     app.start_operation(total_files);
@@ -273,7 +360,7 @@ async fn execute_clean(app: &mut App, checker: &FileChecker) -> Result<()> {
                         &format!("{}: 成功删除 {} 个文件", group_name, deleted),
                     );
                 }
-                
+
                 if deleted > 0 {
                     updated_indices.push(idx);
                 }
@@ -311,12 +398,15 @@ async fn execute_clean(app: &mut App, checker: &FileChecker) -> Result<()> {
 }
 
 async fn execute_migrate(app: &mut App, migrator: &Migrator, checker: &FileChecker) -> Result<()> {
-    let selected_info: Vec<(usize, String, usize)> = app.selected_groups
+    let selected_info: Vec<(usize, String, usize)> = app
+        .selected_groups
         .iter()
         .enumerate()
         .filter_map(|(idx, &selected)| {
             if selected {
-                app.stats.get(idx).map(|s| (idx, s.group_name.clone(), s.file_count))
+                app.stats
+                    .get(idx)
+                    .map(|s| (idx, s.group_name.clone(), s.file_count))
             } else {
                 None
             }
@@ -327,7 +417,10 @@ async fn execute_migrate(app: &mut App, migrator: &Migrator, checker: &FileCheck
         return Ok(());
     }
 
-    app.add_log(LogLevel::Info, &format!("开始迁移 {} 个群组", selected_info.len()));
+    app.add_log(
+        LogLevel::Info,
+        &format!("开始迁移 {} 个群组", selected_info.len()),
+    );
 
     let total_files: usize = selected_info.iter().map(|(_, _, count)| count).sum();
     app.start_operation(total_files);

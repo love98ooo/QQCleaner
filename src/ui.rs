@@ -2,10 +2,7 @@ use ratatui::{
     layout::{Alignment, Constraint, Direction, Layout, Rect},
     style::{Color, Modifier, Style},
     text::{Line, Span},
-    widgets::{
-        Block, Borders, Paragraph, Tabs, Clear,
-        Wrap, BarChart, Row, Table, Cell,
-    },
+    widgets::{BarChart, Block, Borders, Cell, Clear, Paragraph, Row, Table, Tabs, Wrap},
     Frame,
 };
 
@@ -49,14 +46,18 @@ fn render_header(f: &mut Frame, app: &App, area: Rect) {
     let current_idx = app.current_tab as usize;
 
     let tabs = Tabs::new(titles)
-        .block(Block::default()
-            .borders(Borders::ALL)
-            .title(" QQCleaner - 群文件清理工具 "))
+        .block(
+            Block::default()
+                .borders(Borders::ALL)
+                .title(" QQCleaner "),
+        )
         .select(current_idx)
         .style(Style::default().fg(Color::White))
-        .highlight_style(Style::default()
-            .fg(Color::Yellow)
-            .add_modifier(Modifier::BOLD));
+        .highlight_style(
+            Style::default()
+                .fg(Color::Yellow)
+                .add_modifier(Modifier::BOLD),
+        );
 
     f.render_widget(tabs, area);
 }
@@ -65,9 +66,7 @@ fn render_status(f: &mut Frame, app: &App, area: Rect) {
     let status_text = if app.progress.is_running {
         format!(
             "进行中: {}/{} | 当前: {} | [q]退出 [?]帮助",
-            app.progress.current,
-            app.progress.total,
-            app.progress.current_file
+            app.progress.current, app.progress.total, app.progress.current_file
         )
     } else {
         format!(
@@ -84,7 +83,6 @@ fn render_status(f: &mut Frame, app: &App, area: Rect) {
 
     f.render_widget(status, area);
 }
-
 
 fn render_analysis(f: &mut Frame, app: &App, area: Rect) {
     let chunks = Layout::default()
@@ -121,7 +119,6 @@ fn render_migrate(f: &mut Frame, app: &App, area: Rect) {
     render_migrate_options(f, app, chunks[1]);
 }
 
-
 fn render_group_list(f: &mut Frame, app: &App, area: Rect, title: &str) {
     let visible_height = (area.height as usize).saturating_sub(2);
     let total_items = app.filtered_stats.len();
@@ -157,7 +154,9 @@ fn render_group_list(f: &mut Frame, app: &App, area: Rect, title: &str) {
             };
 
             let checkbox_style = if is_selected {
-                Style::default().fg(Color::Green).add_modifier(Modifier::BOLD)
+                Style::default()
+                    .fg(Color::Green)
+                    .add_modifier(Modifier::BOLD)
             } else if is_current {
                 Style::default().fg(Color::White)
             } else {
@@ -165,7 +164,9 @@ fn render_group_list(f: &mut Frame, app: &App, area: Rect, title: &str) {
             };
 
             let name_style = if is_current {
-                Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)
+                Style::default()
+                    .fg(Color::Yellow)
+                    .add_modifier(Modifier::BOLD)
             } else {
                 Style::default()
             };
@@ -190,8 +191,11 @@ fn render_group_list(f: &mut Frame, app: &App, area: Rect, title: &str) {
                 Cell::from(checkbox).style(checkbox_style),
                 Cell::from(group_display).style(name_style),
                 Cell::from(format_bytes(size_in_range)).style(Style::default().fg(Color::Cyan)),
-                Cell::from(format!("({}/{})", exist_count_in_range, file_count_in_range))
-                    .style(count_style),
+                Cell::from(format!(
+                    "({}/{})",
+                    exist_count_in_range, file_count_in_range
+                ))
+                .style(count_style),
             ])
             .style(row_style)
         })
@@ -217,10 +221,10 @@ fn render_group_list(f: &mut Frame, app: &App, area: Rect, title: &str) {
     let table = Table::new(
         rows,
         [
-            Constraint::Length(3),      // checkbox
-            Constraint::Min(10),        // 群名（自适应剩余空间）
-            Constraint::Length(10),     // 大小
-            Constraint::Length(12),     // 文件数
+            Constraint::Length(3),  // checkbox
+            Constraint::Min(10),    // 群名（自适应剩余空间）
+            Constraint::Length(10), // 大小
+            Constraint::Length(12), // 文件数
         ],
     )
     .block(Block::default().borders(Borders::ALL).title(help_text))
@@ -229,38 +233,42 @@ fn render_group_list(f: &mut Frame, app: &App, area: Rect, title: &str) {
     f.render_widget(table, area);
 }
 
-
 fn render_clean_options(f: &mut Frame, app: &App, area: Rect) {
     let selected_count = app.selected_count();
     let deletable_size = app.selected_deletable_size();
     let total_size = app.selected_total_size();
 
     let text = vec![
+        Line::from(vec![Span::styled(
+            "清理选项",
+            Style::default()
+                .add_modifier(Modifier::BOLD)
+                .fg(Color::Yellow),
+        )]),
+        Line::from(""),
         Line::from(vec![
-            Span::styled("清理选项", Style::default().add_modifier(Modifier::BOLD).fg(Color::Yellow)),
+            Span::styled(
+                "已选择群组: ",
+                Style::default().add_modifier(Modifier::BOLD),
+            ),
+            Span::styled(selected_count.to_string(), Style::default().fg(Color::Cyan)),
         ]),
         Line::from(""),
         Line::from(vec![
-            Span::styled("已选择群组: ", Style::default().add_modifier(Modifier::BOLD)),
             Span::styled(
-                selected_count.to_string(),
-                Style::default().fg(Color::Cyan),
+                "文件总大小: ",
+                Style::default().add_modifier(Modifier::BOLD),
             ),
-        ]),
-        Line::from(""),
-        Line::from(vec![
-            Span::styled("文件总大小: ", Style::default().add_modifier(Modifier::BOLD)),
-            Span::styled(
-                format_bytes(total_size),
-                Style::default().fg(Color::Cyan),
-            ),
+            Span::styled(format_bytes(total_size), Style::default().fg(Color::Cyan)),
         ]),
         Line::from(""),
         Line::from(vec![
             Span::styled("预计释放: ", Style::default().add_modifier(Modifier::BOLD)),
             Span::styled(
                 format_bytes(deletable_size),
-                Style::default().fg(Color::Green).add_modifier(Modifier::BOLD),
+                Style::default()
+                    .fg(Color::Green)
+                    .add_modifier(Modifier::BOLD),
             ),
         ]),
         Line::from(""),
@@ -298,32 +306,45 @@ fn render_migrate_options(f: &mut Frame, app: &App, area: Rect) {
     let deletable_size = app.selected_deletable_size();
 
     // 显示当前路径索引和总数
-    let path_indicator = format!("({}/{})", app.migrate_path_index + 1, app.migrate_presets.len());
+    let path_indicator = format!(
+        "({}/{})",
+        app.migrate_path_index + 1,
+        app.migrate_presets.len()
+    );
 
     // 截断过长的路径
     let path_display = app.migrate_target_path.display().to_string();
     let max_path_len = 50;
     let truncated_path = if path_display.len() > max_path_len {
-        format!("...{}", &path_display[path_display.len() - max_path_len + 3..])
+        format!(
+            "...{}",
+            &path_display[path_display.len() - max_path_len + 3..]
+        )
     } else {
         path_display
     };
 
     let text = vec![
-        Line::from(vec![
-            Span::styled("迁移选项", Style::default().add_modifier(Modifier::BOLD).fg(Color::Yellow)),
-        ]),
+        Line::from(vec![Span::styled(
+            "迁移选项",
+            Style::default()
+                .add_modifier(Modifier::BOLD)
+                .fg(Color::Yellow),
+        )]),
         Line::from(""),
         Line::from(vec![
-            Span::styled("已选择群组: ", Style::default().add_modifier(Modifier::BOLD)),
             Span::styled(
-                selected_count.to_string(),
-                Style::default().fg(Color::Cyan),
+                "已选择群组: ",
+                Style::default().add_modifier(Modifier::BOLD),
             ),
+            Span::styled(selected_count.to_string(), Style::default().fg(Color::Cyan)),
         ]),
         Line::from(""),
         Line::from(vec![
-            Span::styled("文件总大小: ", Style::default().add_modifier(Modifier::BOLD)),
+            Span::styled(
+                "文件总大小: ",
+                Style::default().add_modifier(Modifier::BOLD),
+            ),
             Span::styled(
                 format_bytes(selected_size),
                 Style::default().fg(Color::Cyan),
@@ -331,10 +352,15 @@ fn render_migrate_options(f: &mut Frame, app: &App, area: Rect) {
         ]),
         Line::from(""),
         Line::from(vec![
-            Span::styled("范围内大小: ", Style::default().add_modifier(Modifier::BOLD)),
+            Span::styled(
+                "范围内大小: ",
+                Style::default().add_modifier(Modifier::BOLD),
+            ),
             Span::styled(
                 format_bytes(deletable_size),
-                Style::default().fg(Color::Green).add_modifier(Modifier::BOLD),
+                Style::default()
+                    .fg(Color::Green)
+                    .add_modifier(Modifier::BOLD),
             ),
         ]),
         Line::from(""),
@@ -383,11 +409,16 @@ fn render_migrate_options(f: &mut Frame, app: &App, area: Rect) {
 fn render_top_groups(f: &mut Frame, app: &App, area: Rect) {
     let headers = ["群组名称", "文件数(范围内)", "占用空间(范围内)"];
     let header_cells = headers.iter().map(|h| {
-        Cell::from(*h).style(Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD))
+        Cell::from(*h).style(
+            Style::default()
+                .fg(Color::Yellow)
+                .add_modifier(Modifier::BOLD),
+        )
     });
     let header = Row::new(header_cells).height(1);
 
-    let rows: Vec<Row> = app.stats
+    let rows: Vec<Row> = app
+        .stats
         .iter()
         .take(10)
         .map(|stat| {
@@ -405,17 +436,25 @@ fn render_top_groups(f: &mut Frame, app: &App, area: Rect) {
 
     let table = Table::new(
         rows,
-        [Constraint::Percentage(50), Constraint::Percentage(25), Constraint::Percentage(25)],
+        [
+            Constraint::Percentage(50),
+            Constraint::Percentage(25),
+            Constraint::Percentage(25),
+        ],
     )
     .header(header)
-    .block(Block::default().borders(Borders::ALL).title(" Top 10 群组 "));
+    .block(
+        Block::default()
+            .borders(Borders::ALL)
+            .title(" Top 10 群组 "),
+    );
 
     f.render_widget(table, area);
 }
 
 fn render_time_distribution(f: &mut Frame, app: &App, area: Rect) {
-    use std::collections::HashMap;
     use chrono::{DateTime, Datelike, Utc};
+    use std::collections::HashMap;
 
     let mut month_stats: HashMap<String, u64> = HashMap::new();
 
@@ -475,16 +514,32 @@ fn render_statistics_summary(f: &mut Frame, app: &App, area: Rect) {
     let total_exist: usize = app.stats.iter().map(|s| s.exist_count).sum();
     let total_missing: usize = app.stats.iter().map(|s| s.missing_count).sum();
 
-    let range_files: usize = app.stats.iter().map(|s| app.group_file_count_in_range(s)).sum();
+    let range_files: usize = app
+        .stats
+        .iter()
+        .map(|s| app.group_file_count_in_range(s))
+        .sum();
     let range_size: u64 = app.stats.iter().map(|s| app.group_size_in_range(s)).sum();
-    let range_exist: usize = app.stats.iter().map(|s| app.group_exist_count_in_range(s)).sum();
+    let range_exist: usize = app
+        .stats
+        .iter()
+        .map(|s| app.group_exist_count_in_range(s))
+        .sum();
 
     let text = vec![
         Line::from(vec![
-            Span::styled("统计摘要", Style::default().add_modifier(Modifier::BOLD).fg(Color::Yellow)),
+            Span::styled(
+                "统计摘要",
+                Style::default()
+                    .add_modifier(Modifier::BOLD)
+                    .fg(Color::Yellow),
+            ),
             Span::raw("  "),
             Span::styled("[t] 时间范围: ", Style::default().fg(Color::DarkGray)),
-            Span::styled(app.time_range.description(), Style::default().fg(Color::Yellow)),
+            Span::styled(
+                app.time_range.description(),
+                Style::default().fg(Color::Yellow),
+            ),
         ]),
         Line::from(""),
         Line::from(vec![
@@ -499,18 +554,37 @@ fn render_statistics_summary(f: &mut Frame, app: &App, area: Rect) {
         ]),
         Line::from(""),
         Line::from(vec![
-            Span::styled("范围内文件: ", Style::default().add_modifier(Modifier::BOLD)),
-            Span::styled(format!("{}/{}", range_exist, range_files), Style::default().fg(Color::Green).add_modifier(Modifier::BOLD)),
+            Span::styled(
+                "范围内文件: ",
+                Style::default().add_modifier(Modifier::BOLD),
+            ),
+            Span::styled(
+                format!("{}/{}", range_exist, range_files),
+                Style::default()
+                    .fg(Color::Green)
+                    .add_modifier(Modifier::BOLD),
+            ),
             Span::raw("  "),
-            Span::styled("范围内大小: ", Style::default().add_modifier(Modifier::BOLD)),
-            Span::styled(format_bytes(range_size), Style::default().fg(Color::Green).add_modifier(Modifier::BOLD)),
+            Span::styled(
+                "范围内大小: ",
+                Style::default().add_modifier(Modifier::BOLD),
+            ),
+            Span::styled(
+                format_bytes(range_size),
+                Style::default()
+                    .fg(Color::Green)
+                    .add_modifier(Modifier::BOLD),
+            ),
         ]),
         Line::from(""),
         Line::from(vec![
             Span::styled("存在文件: ", Style::default().add_modifier(Modifier::BOLD)),
             Span::styled(total_exist.to_string(), Style::default().fg(Color::Green)),
             Span::raw("  "),
-            Span::styled("缺失(已清理)文件: ", Style::default().add_modifier(Modifier::BOLD)),
+            Span::styled(
+                "缺失(已清理)文件: ",
+                Style::default().add_modifier(Modifier::BOLD),
+            ),
             Span::styled(total_missing.to_string(), Style::default().fg(Color::Red)),
         ]),
     ];
@@ -526,13 +600,17 @@ fn render_help_dialog(f: &mut Frame) {
     let area = centered_rect(60, 70, f.area());
 
     let text = vec![
-        Line::from(vec![
-            Span::styled("快捷键说明", Style::default().add_modifier(Modifier::BOLD).fg(Color::Yellow)),
-        ]),
+        Line::from(vec![Span::styled(
+            "快捷键说明",
+            Style::default()
+                .add_modifier(Modifier::BOLD)
+                .fg(Color::Yellow),
+        )]),
         Line::from(""),
-        Line::from(vec![
-            Span::styled("全局操作:", Style::default().add_modifier(Modifier::BOLD)),
-        ]),
+        Line::from(vec![Span::styled(
+            "全局操作:",
+            Style::default().add_modifier(Modifier::BOLD),
+        )]),
         Line::from(vec![
             Span::styled("  [q] ", Style::default().fg(Color::Cyan)),
             Span::raw("退出程序"),
@@ -554,9 +632,10 @@ fn render_help_dialog(f: &mut Frame) {
             Span::raw("切换时间范围"),
         ]),
         Line::from(""),
-        Line::from(vec![
-            Span::styled("群组操作:", Style::default().add_modifier(Modifier::BOLD)),
-        ]),
+        Line::from(vec![Span::styled(
+            "群组操作:",
+            Style::default().add_modifier(Modifier::BOLD),
+        )]),
         Line::from(vec![
             Span::styled("  [↑↓/jk] ", Style::default().fg(Color::Cyan)),
             Span::raw("上下移动"),
@@ -582,17 +661,19 @@ fn render_help_dialog(f: &mut Frame) {
             Span::raw("打开过滤器（隐藏空群组、不活跃群组）"),
         ]),
         Line::from(""),
-        Line::from(vec![
-            Span::styled("清理操作:", Style::default().add_modifier(Modifier::BOLD)),
-        ]),
+        Line::from(vec![Span::styled(
+            "清理操作:",
+            Style::default().add_modifier(Modifier::BOLD),
+        )]),
         Line::from(vec![
             Span::styled("  [d] ", Style::default().fg(Color::Red)),
             Span::raw("执行清理操作"),
         ]),
         Line::from(""),
-        Line::from(vec![
-            Span::styled("迁移操作:", Style::default().add_modifier(Modifier::BOLD)),
-        ]),
+        Line::from(vec![Span::styled(
+            "迁移操作:",
+            Style::default().add_modifier(Modifier::BOLD),
+        )]),
         Line::from(vec![
             Span::styled("  [←→/p] ", Style::default().fg(Color::Cyan)),
             Span::raw("切换迁移路径"),
@@ -604,10 +685,12 @@ fn render_help_dialog(f: &mut Frame) {
     ];
 
     let paragraph = Paragraph::new(text)
-        .block(Block::default()
-            .borders(Borders::ALL)
-            .title(" 帮助 (按 ? 或 ESC 关闭) ")
-            .style(Style::default().bg(Color::Black)))
+        .block(
+            Block::default()
+                .borders(Borders::ALL)
+                .title(" 帮助 (按 ? 或 ESC 关闭) ")
+                .style(Style::default().bg(Color::Black)),
+        )
         .wrap(Wrap { trim: true });
 
     f.render_widget(Clear, area);
@@ -630,29 +713,33 @@ fn render_confirm_dialog(f: &mut Frame, app: &App) {
 
     let mut text = vec![
         Line::from(""),
-        Line::from(vec![
-            Span::styled(
-                format!("确认{}操作？", action_name),
-                Style::default().add_modifier(Modifier::BOLD).fg(Color::Yellow),
-            ),
-        ]),
+        Line::from(vec![Span::styled(
+            format!("确认{}操作？", action_name),
+            Style::default()
+                .add_modifier(Modifier::BOLD)
+                .fg(Color::Yellow),
+        )]),
         Line::from(""),
     ];
 
     if is_migrate {
-        text.push(Line::from(vec![
-            Span::raw(format!("将迁移 {} 个群组", selected_count)),
-        ]));
-        text.push(Line::from(vec![
-            Span::raw(format!("迁移大小: {}", selected_size)),
-        ]));
+        text.push(Line::from(vec![Span::raw(format!(
+            "将迁移 {} 个群组",
+            selected_count
+        ))]));
+        text.push(Line::from(vec![Span::raw(format!(
+            "迁移大小: {}",
+            selected_size
+        ))]));
     } else {
-        text.push(Line::from(vec![
-            Span::raw(format!("将影响 {} 个群组", selected_count)),
-        ]));
-        text.push(Line::from(vec![
-            Span::raw(format!("总计: {}", selected_size)),
-        ]));
+        text.push(Line::from(vec![Span::raw(format!(
+            "将影响 {} 个群组",
+            selected_count
+        ))]));
+        text.push(Line::from(vec![Span::raw(format!(
+            "总计: {}",
+            selected_size
+        ))]));
     }
 
     text.push(Line::from(""));
@@ -662,11 +749,18 @@ fn render_confirm_dialog(f: &mut Frame, app: &App) {
         let path_display = app.migrate_target_path.display().to_string();
         let max_path_len = 50;
         let truncated_path = if path_display.len() > max_path_len {
-            format!("...{}", &path_display[path_display.len() - max_path_len + 3..])
+            format!(
+                "...{}",
+                &path_display[path_display.len() - max_path_len + 3..]
+            )
         } else {
             path_display
         };
-        let path_indicator = format!("({}/{})", app.migrate_path_index + 1, app.migrate_presets.len());
+        let path_indicator = format!(
+            "({}/{})",
+            app.migrate_path_index + 1,
+            app.migrate_presets.len()
+        );
 
         text.push(Line::from(vec![
             Span::styled("目标路径: ", Style::default().add_modifier(Modifier::BOLD)),
@@ -676,14 +770,21 @@ fn render_confirm_dialog(f: &mut Frame, app: &App) {
             Span::raw("  "),
             Span::styled(truncated_path, Style::default().fg(Color::Cyan)),
         ]));
-        text.push(Line::from(vec![
-            Span::styled("  (←→/p 切换)", Style::default().fg(Color::DarkGray)),
-        ]));
+        text.push(Line::from(vec![Span::styled(
+            "  (←→/p 切换)",
+            Style::default().fg(Color::DarkGray),
+        )]));
         text.push(Line::from(""));
 
-        let checkbox = if app.temp_migrate_keep_original { "[x]" } else { "[ ]" };
+        let checkbox = if app.temp_migrate_keep_original {
+            "[x]"
+        } else {
+            "[ ]"
+        };
         let checkbox_style = if app.temp_migrate_keep_original {
-            Style::default().fg(Color::Green).add_modifier(Modifier::BOLD)
+            Style::default()
+                .fg(Color::Green)
+                .add_modifier(Modifier::BOLD)
         } else {
             Style::default().fg(Color::Red).add_modifier(Modifier::BOLD)
         };
@@ -696,9 +797,10 @@ fn render_confirm_dialog(f: &mut Frame, app: &App) {
         ]));
         text.push(Line::from(""));
     } else {
-        text.push(Line::from(vec![
-            Span::styled("此操作不可恢复！", Style::default().fg(Color::Red).add_modifier(Modifier::BOLD)),
-        ]));
+        text.push(Line::from(vec![Span::styled(
+            "此操作不可恢复！",
+            Style::default().fg(Color::Red).add_modifier(Modifier::BOLD),
+        )]));
         text.push(Line::from(""));
     }
 
@@ -711,10 +813,12 @@ fn render_confirm_dialog(f: &mut Frame, app: &App) {
     ]));
 
     let paragraph = Paragraph::new(text)
-        .block(Block::default()
-            .borders(Borders::ALL)
-            .title(" 确认操作 ")
-            .style(Style::default().bg(Color::Black)))
+        .block(
+            Block::default()
+                .borders(Borders::ALL)
+                .title(" 确认操作 ")
+                .style(Style::default().bg(Color::Black)),
+        )
         .alignment(Alignment::Center);
 
     f.render_widget(Clear, area);
@@ -726,9 +830,12 @@ fn render_filter_dialog(f: &mut Frame, app: &App) {
     let inner_width = area.width.saturating_sub(4) as usize;
 
     let mut text = vec![
-        Line::from(vec![
-            Span::styled("过滤器设置", Style::default().add_modifier(Modifier::BOLD).fg(Color::Yellow)),
-        ]),
+        Line::from(vec![Span::styled(
+            "过滤器设置",
+            Style::default()
+                .add_modifier(Modifier::BOLD)
+                .fg(Color::Yellow),
+        )]),
         Line::from(""),
         Line::from(vec![
             Span::styled("使用 ", Style::default().fg(Color::DarkGray)),
@@ -743,13 +850,19 @@ fn render_filter_dialog(f: &mut Frame, app: &App) {
     ];
 
     let cursor_0 = if app.filter_cursor == 0 { "► " } else { "  " };
-    let checkbox_0 = if app.temp_filter.hide_empty { "[x]" } else { "[ ]" };
+    let checkbox_0 = if app.temp_filter.hide_empty {
+        "[x]"
+    } else {
+        "[ ]"
+    };
     text.push(Line::from(vec![
         Span::styled(cursor_0, Style::default().fg(Color::Yellow)),
         Span::styled(
             checkbox_0,
             if app.temp_filter.hide_empty {
-                Style::default().fg(Color::Green).add_modifier(Modifier::BOLD)
+                Style::default()
+                    .fg(Color::Green)
+                    .add_modifier(Modifier::BOLD)
             } else {
                 Style::default().fg(Color::DarkGray)
             },
@@ -769,29 +882,33 @@ fn render_filter_dialog(f: &mut Frame, app: &App) {
     let cursor_1 = if app.filter_cursor == 1 { "► " } else { "  " };
     let (activity_checkbox, activity_text) = match app.temp_filter.activity {
         crate::app::ActivityFilter::All => ("[ ]", "活跃度过滤: 关闭"),
-        crate::app::ActivityFilter::Active(days) => {
-            ("[x]", match days {
+        crate::app::ActivityFilter::Active(days) => (
+            "[x]",
+            match days {
                 7 => "活跃度过滤: 活跃(7天内)",
                 30 => "活跃度过滤: 活跃(30天内)",
                 90 => "活跃度过滤: 活跃(90天内)",
                 _ => "活跃度过滤: 活跃",
-            })
-        }
-        crate::app::ActivityFilter::Inactive(days) => {
-            ("[x]", match days {
+            },
+        ),
+        crate::app::ActivityFilter::Inactive(days) => (
+            "[x]",
+            match days {
                 7 => "活跃度过滤: 不活跃(7天前)",
                 30 => "活跃度过滤: 不活跃(30天前)",
                 90 => "活跃度过滤: 不活跃(90天前)",
                 _ => "活跃度过滤: 不活跃",
-            })
-        }
+            },
+        ),
     };
     text.push(Line::from(vec![
         Span::styled(cursor_1, Style::default().fg(Color::Yellow)),
         Span::styled(
             activity_checkbox,
             if !matches!(app.temp_filter.activity, crate::app::ActivityFilter::All) {
-                Style::default().fg(Color::Green).add_modifier(Modifier::BOLD)
+                Style::default()
+                    .fg(Color::Green)
+                    .add_modifier(Modifier::BOLD)
             } else {
                 Style::default().fg(Color::DarkGray)
             },
@@ -819,7 +936,8 @@ fn render_filter_dialog(f: &mut Frame, app: &App) {
     text.push(Line::from(""));
 
     let now = chrono::Utc::now().timestamp();
-    let would_filter = app.stats
+    let would_filter = app
+        .stats
         .iter()
         .filter(|stat| {
             if app.temp_filter.hide_empty && stat.exist_count == 0 {
@@ -857,17 +975,24 @@ fn render_filter_dialog(f: &mut Frame, app: &App) {
     text.push(Line::from(""));
 
     text.push(Line::from(vec![
-        Span::styled("[a] ", Style::default().fg(Color::Green).add_modifier(Modifier::BOLD)),
+        Span::styled(
+            "[a] ",
+            Style::default()
+                .fg(Color::Green)
+                .add_modifier(Modifier::BOLD),
+        ),
         Span::raw("应用 (Apply)   "),
         Span::styled("[c/ESC] ", Style::default().fg(Color::Red)),
         Span::raw("取消 (Cancel)"),
     ]));
 
     let paragraph = Paragraph::new(text)
-        .block(Block::default()
-            .borders(Borders::ALL)
-            .title(" 过滤器设置 ")
-            .style(Style::default().bg(Color::Black)))
+        .block(
+            Block::default()
+                .borders(Borders::ALL)
+                .title(" 过滤器设置 ")
+                .style(Style::default().bg(Color::Black)),
+        )
         .wrap(Wrap { trim: true });
 
     f.render_widget(Clear, area);
@@ -903,4 +1028,3 @@ fn truncate(s: &str, max_len: usize) -> String {
         result
     }
 }
-

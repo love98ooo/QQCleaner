@@ -1,8 +1,8 @@
 use anyhow::{Context, Result};
 use serde::Deserialize;
+use std::env;
 use std::fs;
 use std::path::PathBuf;
-use std::env;
 
 #[derive(Debug, Deserialize)]
 pub struct Config {
@@ -26,12 +26,9 @@ pub struct DatabaseConfig {
 
 impl Config {
     pub fn load() -> Result<Self> {
-        let current_dir_config = env::current_dir()
-            .ok()
-            .map(|p| p.join("config.toml"));
+        let current_dir_config = env::current_dir().ok().map(|p| p.join("config.toml"));
 
-        let user_config = dirs::config_dir()
-            .map(|p| p.join("qqcleaner").join("config.toml"));
+        let user_config = dirs::config_dir().map(|p| p.join("qqcleaner").join("config.toml"));
 
         let config_path = [current_dir_config, user_config]
             .into_iter()
@@ -41,8 +38,7 @@ impl Config {
         if let Some(path) = config_path {
             let content = fs::read_to_string(&path)
                 .with_context(|| format!("无法读取配置文件: {:?}", path))?;
-            let config: Config = toml::from_str(&content)
-                .context("配置文件格式错误")?;
+            let config: Config = toml::from_str(&content).context("配置文件格式错误")?;
             Ok(config)
         } else {
             Ok(Self::default())
@@ -52,7 +48,9 @@ impl Config {
     fn default() -> Self {
         Config {
             paths: PathsConfig {
-                qq_data_base: "Library/Containers/com.tencent.qq/Data/Library/Application Support/QQ".to_string(),
+                qq_data_base:
+                    "Library/Containers/com.tencent.qq/Data/Library/Application Support/QQ"
+                        .to_string(),
                 nt_qq_prefix: "nt_qq_".to_string(),
                 nt_data_subpath: "nt_data/Pic".to_string(),
             },
@@ -65,24 +63,45 @@ impl Config {
     }
 
     pub fn get_qq_base_dir(&self) -> Result<PathBuf> {
-        let home_dir = dirs::home_dir()
-            .context("无法获取用户主目录")?;
+        let home_dir = dirs::home_dir().context("无法获取用户主目录")?;
         Ok(home_dir.join(&self.paths.qq_data_base))
     }
 
     pub fn get_db_dir(&self) -> PathBuf {
-        env::current_dir()
-            .unwrap_or_else(|_| PathBuf::from("."))
-            .join(&self.database.db_dir)
+        #[cfg(debug_assertions)]
+        {
+            // Debug 模式：使用当前工作目录
+            env::current_dir()
+                .unwrap_or_else(|_| PathBuf::from("."))
+                .join(&self.database.db_dir)
+        }
+
+        #[cfg(not(debug_assertions))]
+        {
+            // Release 模式：使用平台规范目录
+            self.get_platform_data_dir().unwrap_or_else(|_| {
+                // 降级到当前目录
+                env::current_dir()
+                    .unwrap_or_else(|_| PathBuf::from("."))
+                    .join(&self.database.db_dir)
+            })
+        }
     }
 
-    pub fn get_temp_db_dir(&self) -> Result<PathBuf> {
-        let temp_dir = env::temp_dir().join("qqcleaner");
-        if !temp_dir.exists() {
-            fs::create_dir_all(&temp_dir)
-                .with_context(|| format!("创建临时目录失败: {:?}", temp_dir))?;
+    /// 获取符合平台规范的数据目录
+    #[cfg(not(debug_assertions))]
+    fn get_platform_data_dir(&self) -> Result<PathBuf> {
+        let data_dir = dirs::data_dir()
+            .context("无法获取平台数据目录")?
+            .join("qqcleaner")
+            .join(&self.database.db_dir);
+
+        if !data_dir.exists() {
+            fs::create_dir_all(&data_dir)
+                .with_context(|| format!("创建数据目录失败: {:?}", data_dir))?;
         }
-        Ok(temp_dir)
+
+        Ok(data_dir)
     }
 
     pub fn get_files_db_path_in(&self, dir: &PathBuf) -> PathBuf {
